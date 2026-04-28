@@ -146,6 +146,26 @@ Una vez activo, el dashboard detecta automáticamente el webhook y lo usa como f
 
 ---
 
+## 🔄 Actualizar URL de ngrok
+
+Cuando reinicies ngrok, la URL pública cambiará. Para reconectar el dashboard:
+
+1. Obtén la nueva URL de ngrok (ej: `https://nueva-url.ngrok-free.app`)
+2. Ve a Streamlit Cloud → tu app → **⋮ → Settings → Secrets**
+3. Actualiza los valores:
+   ```toml
+   [n8n]
+   url     = "https://nueva-url.ngrok-free.app"
+   api_key = "tu_api_key"   # esta no cambia
+   webhook = "https://nueva-url.ngrok-free.app/webhook"
+   ```
+4. Clic en **Save** → la app se reiniciará automáticamente con la nueva URL
+
+**Alternativa:** Para evitar este proceso, considera usar ngrok con un dominio fijo
+(plan de pago) o migrar n8n a un servicio cloud como Railway o Render.
+
+---
+
 ## Notas de desarrollo
 
 - El caché de datos tiene un TTL de 300 segundos (5 minutos)
