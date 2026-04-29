@@ -114,21 +114,44 @@ st.markdown('<p class="section-title">📊 KPIs Globales</p>', unsafe_allow_html
 kpi1, kpi2, kpi3, kpi4 = st.columns(4)
 
 total_jobs = len(df_jobs)
-total_matches = int(df_match["total_matches_aplicar"].sum()) if not df_match.empty and "total_matches_aplicar" in df_match.columns else 0
 best_f1 = round(df_exp["f1"].max(), 3) if not df_exp.empty and "f1" in df_exp.columns else 0.0
 last_exp = df_exp["experiment_id"].iloc[-1] if not df_exp.empty else "N/A"
 
+# Matches del último run (no acumulado)
+if not df_match.empty and "total_matches_aplicar" in df_match.columns:
+    if "fecha_ejecucion" in df_match.columns:
+        last_run = df_match.sort_values("fecha_ejecucion").iloc[-1]
+    else:
+        last_run = df_match.iloc[-1]
+    last_run_matches = int(last_run["total_matches_aplicar"])
+else:
+    last_run_matches = 0
+
+tasa_match = round(last_run_matches / total_jobs, 2) if total_jobs > 0 else 0.0
+
 with kpi1:
-    st.metric("📋 Oportunidades procesadas", total_jobs, help="Total de LinkedIn jobs clasificados")
+    st.metric(
+        "📋 Oportunidades en base de datos",
+        total_jobs,
+        help="Total de oportunidades recolectadas de LinkedIn almacenadas en la tabla linkedin_jobs",
+    )
 
 with kpi2:
-    st.metric("🎯 Matches 'Aplicar'", total_matches, help="Total de matches con decisión 'aplicar'")
+    st.metric(
+        "🎯 Matches 'Aplicar' (último run)",
+        last_run_matches,
+        help="Pares (consultor, oportunidad) con decisión 'aplicar' en la ejecución más reciente del pipeline",
+    )
 
 with kpi3:
-    st.metric("🏆 Mejor F1-Score", f"{best_f1:.3f}", help="F1 máximo entre todos los experimentos")
+    st.metric(
+        "📐 Tasa de match",
+        f"{tasa_match:.2f}",
+        help="Promedio de matches por oportunidad en el último run (matches ÷ oportunidades en base de datos)",
+    )
 
 with kpi4:
-    st.metric("🧪 Último experimento", last_exp, help="ID del experimento más reciente")
+    st.metric("🏆 Mejor F1-Score", f"{best_f1:.3f}", help="F1 máximo entre todos los experimentos")
 
 # ------------------------------------------------------------------
 # Gráfico: Evolución Precision / Recall / F1
