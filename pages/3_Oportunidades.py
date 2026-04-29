@@ -101,6 +101,7 @@ col_map = {
     "pais": "País",
     "fecha_limite": "Fecha límite",
     "confianza_clasificacion": "Confianza",
+    "URL": "🖼️ Imagen",
 }
 avail = [k for k in col_map if k in df_filtered.columns]
 
@@ -110,6 +111,7 @@ st.dataframe(
     hide_index=True,
     column_config={
         "Confianza": st.column_config.ProgressColumn("Confianza", min_value=0, max_value=1),
+        "🖼️ Imagen": st.column_config.LinkColumn("🖼️ Imagen", display_text="Ver imagen"),
     },
 )
 
@@ -137,6 +139,9 @@ for _, r in df_filtered.iterrows():
             aplica = r.get("aplica_en", "")
             if aplica:
                 st.markdown(f"**Aplicar en:** [{aplica}]({aplica})")
+            imagen_url = r.get("URL", "")
+            if imagen_url:
+                st.link_button("🖼️ Ver imagen de la oportunidad", imagen_url)
             st.markdown(f"**Razón de clasificación:** {r.get('razon_clasificacion', 'N/A')}")
 
         st.markdown("**Objetivo del cargo:**")

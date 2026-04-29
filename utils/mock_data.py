@@ -46,7 +46,8 @@ def get_linkedin_jobs() -> pd.DataFrame:
             "fecha_limite": "2024-04-30",
             "tipo_oportunidad": "consultoría",
             "confianza_clasificacion": 0.92,
-            "razon_clasificacion": "El cargo describe claramente un rol de consultoría con objetivos definidos y no implica relación de dependencia laboral."
+            "razon_clasificacion": "El cargo describe claramente un rol de consultoría con objetivos definidos y no implica relación de dependencia laboral.",
+            "URL": "https://picsum.photos/seed/job001/800/600",
         },
         {
             "post_id": "job_002",
@@ -59,7 +60,8 @@ def get_linkedin_jobs() -> pd.DataFrame:
             "fecha_limite": "2024-05-15",
             "tipo_oportunidad": "empleo",
             "confianza_clasificacion": 0.88,
-            "razon_clasificacion": "Perfil de empleo de tiempo completo con dependencia organizacional clara."
+            "razon_clasificacion": "Perfil de empleo de tiempo completo con dependencia organizacional clara.",
+            "URL": "https://picsum.photos/seed/job002/800/600",
         },
         {
             "post_id": "job_003",
@@ -72,7 +74,8 @@ def get_linkedin_jobs() -> pd.DataFrame:
             "fecha_limite": "2024-04-30",
             "tipo_oportunidad": "financiamiento",
             "confianza_clasificacion": 0.95,
-            "razon_clasificacion": "Convocatoria de financiamiento con capital no reembolsable, no es empleo ni consultoría."
+            "razon_clasificacion": "Convocatoria de financiamiento con capital no reembolsable, no es empleo ni consultoría.",
+            "URL": "https://picsum.photos/seed/job003/800/600",
         },
         {
             "post_id": "job_004",
@@ -85,7 +88,8 @@ def get_linkedin_jobs() -> pd.DataFrame:
             "fecha_limite": "2024-06-01",
             "tipo_oportunidad": "formación",
             "confianza_clasificacion": 0.90,
-            "razon_clasificacion": "Programa educativo con componente práctico, no genera remuneración sino capacitación."
+            "razon_clasificacion": "Programa educativo con componente práctico, no genera remuneración sino capacitación.",
+            "URL": "https://picsum.photos/seed/job004/800/600",
         },
         {
             "post_id": "job_005",
@@ -98,7 +102,8 @@ def get_linkedin_jobs() -> pd.DataFrame:
             "fecha_limite": "2024-05-01",
             "tipo_oportunidad": "evento",
             "confianza_clasificacion": 0.97,
-            "razon_clasificacion": "Evento presencial de networking y conocimiento, sin remuneración ni vínculo laboral."
+            "razon_clasificacion": "Evento presencial de networking y conocimiento, sin remuneración ni vínculo laboral.",
+            "URL": "https://picsum.photos/seed/job005/800/600",
         },
         {
             "post_id": "job_006",
@@ -111,7 +116,8 @@ def get_linkedin_jobs() -> pd.DataFrame:
             "fecha_limite": "2024-05-20",
             "tipo_oportunidad": "empleo",
             "confianza_clasificacion": 0.85,
-            "razon_clasificacion": "Posición académica con vínculo de dependencia institucional."
+            "razon_clasificacion": "Posición académica con vínculo de dependencia institucional.",
+            "URL": "https://picsum.photos/seed/job006/800/600",
         },
         {
             "post_id": "job_007",
