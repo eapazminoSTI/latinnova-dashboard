@@ -162,44 +162,55 @@ if "experiment_id" in df_gt.columns and "es_correcto" in df_gt.columns:
 # ------------------------------------------------------------------
 st.markdown('<p class="section-title">➕ Agregar Nueva Evaluación</p>', unsafe_allow_html=True)
 
-with st.form("form_ground_truth"):
-    exp_ids = df_exp["experiment_id"].tolist() if not df_exp.empty and "experiment_id" in df_exp.columns else []
+# Mensajes persistentes tras el rerun
+if st.session_state.get("gt_saved"):
+    st.success("✅ Evaluación guardada exitosamente en n8n.")
+    del st.session_state["gt_saved"]
+elif st.session_state.get("gt_warning"):
+    st.warning("⚠ No se pudo guardar en n8n (modo mock activo). La evaluación se registró localmente.")
+    del st.session_state["gt_warning"]
 
-    col_f1, col_f2 = st.columns(2)
-    with col_f1:
-        exp_sel   = st.selectbox("Experimento", exp_ids)
-        opp_id    = st.text_input("ID de Oportunidad", placeholder="job_001")
-        opp_name  = st.text_input("Nombre de Oportunidad")
-    with col_f2:
-        cons_id   = st.text_input("ID de Consultor", placeholder="c_001")
-        cons_name = st.text_input("Nombre del Consultor")
-        evaluador = st.text_input("Evaluador", placeholder="nombre_evaluador")
+exp_ids = df_exp["experiment_id"].tolist() if not df_exp.empty and "experiment_id" in df_exp.columns else []
 
-    es_correcto = st.radio("¿Es un match correcto?", ["✅ Sí", "❌ No"], horizontal=True)
-    comentario  = st.text_area("Comentario (opcional)")
+if not exp_ids:
+    st.info("No hay experimentos registrados aún. Ejecuta al menos un experimento para poder agregar evaluaciones de ground truth.")
+else:
+    with st.form("form_ground_truth"):
+        col_f1, col_f2 = st.columns(2)
+        with col_f1:
+            exp_sel   = st.selectbox("Experimento", exp_ids)
+            opp_id    = st.text_input("ID de Oportunidad", placeholder="job_001")
+            opp_name  = st.text_input("Nombre de Oportunidad")
+        with col_f2:
+            cons_id   = st.text_input("ID de Consultor", placeholder="c_001")
+            cons_name = st.text_input("Nombre del Consultor")
+            evaluador = st.text_input("Evaluador", placeholder="nombre_evaluador")
 
-    submitted = st.form_submit_button("💾 Guardar evaluación", use_container_width=True)
+        es_correcto = st.radio("¿Es un match correcto?", ["✅ Sí", "❌ No"], horizontal=True)
+        comentario  = st.text_area("Comentario (opcional)")
 
-    if submitted:
-        if not all([opp_id, opp_name, cons_id, cons_name, evaluador]):
-            st.error("Por favor completa todos los campos obligatorios.")
-        else:
-            new_row = {
-                "par_id": f"gt_{uuid.uuid4().hex[:6]}",
-                "experiment_id": exp_sel,
-                "oportunidad_id": opp_id,
-                "consultor_id": cons_id,
-                "nombre_oportunidad": opp_name,
-                "nombre_consultor": cons_name,
-                "es_correcto": es_correcto.startswith("✅"),
-                "evaluador": evaluador,
-                "comentario": comentario,
-                "evaluated_at": datetime.utcnow().isoformat(),
-            }
-            success = client.insert_row("ground_truth", new_row)
-            if success:
-                st.success("✅ Evaluación guardada exitosamente en n8n.")
-                st.cache_data.clear()
+        submitted = st.form_submit_button("💾 Guardar evaluación", use_container_width=True)
+
+        if submitted:
+            if not all([exp_sel, opp_id, opp_name, cons_id, cons_name, evaluador]):
+                st.error("Por favor completa todos los campos obligatorios.")
             else:
-                st.warning("⚠ No se pudo guardar en n8n (modo mock activo). La evaluación se registró localmente.")
-            st.rerun()
+                new_row = {
+                    "par_id": f"gt_{uuid.uuid4().hex[:6]}",
+                    "experiment_id": exp_sel,
+                    "oportunidad_id": opp_id,
+                    "consultor_id": cons_id,
+                    "nombre_oportunidad": opp_name,
+                    "nombre_consultor": cons_name,
+                    "es_correcto": es_correcto.startswith("✅"),
+                    "evaluador": evaluador,
+                    "comentario": comentario,
+                    "evaluated_at": datetime.utcnow().isoformat(),
+                }
+                success = client.insert_row("ground_truth", new_row)
+                if success:
+                    st.session_state["gt_saved"] = True
+                    st.cache_data.clear()
+                else:
+                    st.session_state["gt_warning"] = True
+                st.rerun()
