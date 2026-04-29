@@ -104,7 +104,7 @@ col_map = {
     "pais": "País",
     "fecha_limite": "Fecha límite",
     "confianza_clasificacion": "Confianza",
-    "URL": "🖼️ Imagen",
+    "url": "🖼️ Imagen",
 }
 avail = [k for k in col_map if k in df_filtered.columns]
 
@@ -142,7 +142,7 @@ for _, r in df_filtered.iterrows():
             aplica = r.get("aplica_en", "")
             if aplica:
                 st.markdown(f"**Aplicar en:** [{aplica}]({aplica})")
-            imagen_url = r.get("URL", "")
+            imagen_url = r.get("url", "")
             if imagen_url:
                 st.link_button("🖼️ Ver imagen de la oportunidad", imagen_url)
             st.markdown(f"**Razón de clasificación:** {r.get('razon_clasificacion', 'N/A')}")
