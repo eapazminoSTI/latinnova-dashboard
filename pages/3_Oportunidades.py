@@ -33,6 +33,9 @@ if df.empty:
     st.warning("Sin datos de oportunidades disponibles.")
     st.stop()
 
+with st.expander("🔧 Diagnóstico — columnas disponibles en la tabla", expanded=False):
+    st.write(list(df.columns))
+
 # ------------------------------------------------------------------
 # Filtros en sidebar
 # ------------------------------------------------------------------
