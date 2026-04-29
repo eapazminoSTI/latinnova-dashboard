@@ -7,7 +7,7 @@ import plotly.graph_objects as go
 import pandas as pd
 import uuid
 from datetime import datetime
-from utils.n8n_client import get_client
+from utils.n8n_client import get_client, safe_json_parse
 
 st.set_page_config(page_title="Ground Truth — Latinnova", layout="wide", page_icon="✅")
 
@@ -29,9 +29,10 @@ client = get_client()
 # ------------------------------------------------------------------
 # Carga de datos
 # ------------------------------------------------------------------
-df_gt   = client.get_table("ground_truth")
-df_exp  = client.get_table("experiment_log")
-df_eval = client.get_table("evaluation_results")
+df_gt    = client.get_table("ground_truth")
+df_exp   = client.get_table("experiment_log")
+df_eval  = client.get_table("evaluation_results")
+df_match = client.get_table("resultados_match")
 
 if df_gt.empty:
     st.warning("Sin datos de ground truth disponibles.")
@@ -175,15 +176,62 @@ exp_ids = df_exp["experiment_id"].tolist() if not df_exp.empty and "experiment_i
 if not exp_ids:
     st.info("No hay experimentos registrados aún. Ejecuta al menos un experimento para poder agregar evaluaciones de ground truth.")
 else:
+    # Construir lista de pares únicos desde todos_los_resultados de resultados_match
+    unique_pairs = []
+    if not df_match.empty and "todos_los_resultados" in df_match.columns:
+        seen_keys = set()
+        for _, row in df_match.iterrows():
+            resultados = safe_json_parse(row.get("todos_los_resultados"), [])
+            if isinstance(resultados, list):
+                for par in resultados:
+                    key = (par.get("consultor_id", ""), par.get("oportunidad_id", ""))
+                    if key not in seen_keys and any(key):
+                        seen_keys.add(key)
+                        decision = par.get("decision", "")
+                        icon = "✅" if decision == "aplicar" else "❌"
+                        unique_pairs.append({
+                            "label": f"{icon} {par.get('nombre_consultor', '?')} ↔ {par.get('nombre_oportunidad', '?')} [{decision}]",
+                            "consultor_id": par.get("consultor_id", ""),
+                            "nombre_consultor": par.get("nombre_consultor", ""),
+                            "oportunidad_id": par.get("oportunidad_id", ""),
+                            "nombre_oportunidad": par.get("nombre_oportunidad", ""),
+                        })
+
+    # Selector de par FUERA del form para que al cambiar recargue y pre-complete los campos
+    selected_pair = None
+    if unique_pairs:
+        pair_labels = ["— Ingresar manualmente —"] + [p["label"] for p in unique_pairs]
+        pair_sel = st.selectbox(
+            "🔗 Cargar par evaluado desde el pipeline (opcional)",
+            pair_labels,
+            help="Selecciona un par consultor-oportunidad ya evaluado por el pipeline para auto-completar los campos.",
+        )
+        if pair_sel != "— Ingresar manualmente —":
+            selected_pair = next((p for p in unique_pairs if p["label"] == pair_sel), None)
+
     with st.form("form_ground_truth"):
         col_f1, col_f2 = st.columns(2)
         with col_f1:
             exp_sel   = st.selectbox("Experimento", exp_ids)
-            opp_id    = st.text_input("ID de Oportunidad", placeholder="job_001")
-            opp_name  = st.text_input("Nombre de Oportunidad")
+            opp_id    = st.text_input(
+                "ID de Oportunidad",
+                value=selected_pair["oportunidad_id"] if selected_pair else "",
+                placeholder="job_001",
+            )
+            opp_name  = st.text_input(
+                "Nombre de Oportunidad",
+                value=selected_pair["nombre_oportunidad"] if selected_pair else "",
+            )
         with col_f2:
-            cons_id   = st.text_input("ID de Consultor", placeholder="c_001")
-            cons_name = st.text_input("Nombre del Consultor")
+            cons_id   = st.text_input(
+                "ID de Consultor",
+                value=selected_pair["consultor_id"] if selected_pair else "",
+                placeholder="c_001",
+            )
+            cons_name = st.text_input(
+                "Nombre del Consultor",
+                value=selected_pair["nombre_consultor"] if selected_pair else "",
+            )
             evaluador = st.text_input("Evaluador", placeholder="nombre_evaluador")
 
         es_correcto = st.radio("¿Es un match correcto?", ["✅ Sí", "❌ No"], horizontal=True)
