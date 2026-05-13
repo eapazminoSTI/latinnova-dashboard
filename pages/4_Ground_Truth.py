@@ -38,22 +38,26 @@ if df_gt.empty:
     st.warning("Sin datos de ground truth disponibles.")
     st.stop()
 
+# Separar filas evaluadas (es_correcto no nulo) de las pendientes
+df_gt_eval = df_gt[df_gt["es_correcto"].notna()] if "es_correcto" in df_gt.columns else df_gt
+
 # ------------------------------------------------------------------
 # KPIs globales
 # ------------------------------------------------------------------
 st.markdown('<p class="section-title">📊 Estado del Ground Truth</p>', unsafe_allow_html=True)
 
-total_eval = len(df_gt)
-total_correct = int(df_gt["es_correcto"].sum()) if "es_correcto" in df_gt.columns else 0
+total_eval    = len(df_gt_eval)
+total_correct = int(df_gt_eval["es_correcto"].sum()) if "es_correcto" in df_gt_eval.columns and total_eval > 0 else 0
 total_incorrect = total_eval - total_correct
 pct_correct   = round((total_correct / total_eval) * 100, 1) if total_eval > 0 else 0.0
 pct_incorrect = round((total_incorrect / total_eval) * 100, 1) if total_eval > 0 else 0.0
+total_pending = len(df_gt) - total_eval
 
 c1, c2, c3, c4 = st.columns(4)
-c1.metric("📋 Total evaluado", total_eval)
+c1.metric("📋 Total evaluado", total_eval, f"+{total_pending} pendientes" if total_pending else None)
 c2.metric("✅ Correctos", total_correct, f"{pct_correct}%")
 c3.metric("❌ Incorrectos", total_incorrect, f"-{pct_incorrect}%")
-c4.metric("👥 Evaluadores", df_gt["evaluador"].nunique() if "evaluador" in df_gt.columns else 0)
+c4.metric("👥 Evaluadores", df_gt_eval["evaluador"].nunique() if "evaluador" in df_gt_eval.columns else 0)
 
 # ------------------------------------------------------------------
 # Tabla de ground truth
@@ -62,7 +66,9 @@ st.markdown('<p class="section-title">📋 Tabla de Evaluaciones</p>', unsafe_al
 
 df_display = df_gt.copy()
 if "es_correcto" in df_display.columns:
-    df_display["Resultado"] = df_display["es_correcto"].map({True: "✅ Correcto", False: "❌ Incorrecto"})
+    df_display["Resultado"] = df_display["es_correcto"].map(
+        {True: "✅ Correcto", False: "❌ Incorrecto"}
+    ).fillna("⏳ Pendiente")
 
 col_map = {
     "par_id": "Par ID",
@@ -86,13 +92,14 @@ st.dataframe(
 # ------------------------------------------------------------------
 st.markdown('<p class="section-title">📈 Accuracy (GT) vs F1-Score por Experimento</p>', unsafe_allow_html=True)
 
-if "experiment_id" in df_gt.columns and "es_correcto" in df_gt.columns:
+if "experiment_id" in df_gt_eval.columns and "es_correcto" in df_gt_eval.columns and not df_gt_eval.empty:
     acc_por_exp = (
-        df_gt.groupby("experiment_id")["es_correcto"]
+        df_gt_eval.groupby("experiment_id")["es_correcto"]
         .agg(["sum", "count"])
         .reset_index()
     )
     acc_por_exp.columns = ["experiment_id", "correctos", "total"]
+    acc_por_exp = acc_por_exp[acc_por_exp["total"] > 0]
     acc_por_exp["accuracy"] = acc_por_exp["correctos"] / acc_por_exp["total"]
 
     fig_acc = go.Figure()
@@ -134,8 +141,8 @@ if "experiment_id" in df_gt.columns and "es_correcto" in df_gt.columns:
 # ------------------------------------------------------------------
 # Gráfico: Correctos vs Incorrectos por experimento
 # ------------------------------------------------------------------
-if "experiment_id" in df_gt.columns and "es_correcto" in df_gt.columns:
-    df_gt_plot = df_gt.copy()
+if "experiment_id" in df_gt_eval.columns and "es_correcto" in df_gt_eval.columns and not df_gt_eval.empty:
+    df_gt_plot = df_gt_eval.copy()
     df_gt_plot["label"] = df_gt_plot["es_correcto"].map({True: "Correcto", False: "Incorrecto"})
     pivot = df_gt_plot.groupby(["experiment_id", "label"]).size().unstack(fill_value=0)
 
