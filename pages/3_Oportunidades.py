@@ -46,13 +46,30 @@ def _norm_pais(val):
     return "Ecuador" if v in _ECUADOR_ALIAS else v
 
 # ------------------------------------------------------------------
-# Filtros en sidebar
+# df_base: solo registros completos (cargo, ciudad, pais, fecha_limite)
+# Se usa como fuente para el sidebar y para la tabla final.
+# ------------------------------------------------------------------
+_required = ["cargo", "ciudad", "pais", "fecha_limite"]
+_base = df.copy()
+if "pais" in _base.columns:
+    _base["pais"] = _base["pais"].map(_norm_pais)
+_existing_req = [c for c in _required if c in _base.columns]
+if _existing_req:
+    _base_mask = _base[_existing_req].apply(
+        lambda col: col.astype(str).str.strip().replace({"None": "", "nan": "", "NaT": ""})
+    ).ne("").all(axis=1)
+    df_base = _base[_base_mask].copy()
+else:
+    df_base = _base.copy()
+
+# ------------------------------------------------------------------
+# Filtros en sidebar (opciones basadas en df_base)
 # ------------------------------------------------------------------
 with st.sidebar:
     st.markdown("### 🔍 Filtros")
 
-    if "tipo_oportunidad" in df.columns:
-        tipos = sorted(df["tipo_oportunidad"].dropna().unique().tolist())
+    if "tipo_oportunidad" in df_base.columns:
+        tipos = sorted(df_base["tipo_oportunidad"].dropna().unique().tolist())
         if tipos:
             tipos_sel = st.multiselect("Tipo de oportunidad", tipos, default=tipos)
         else:
@@ -60,8 +77,8 @@ with st.sidebar:
     else:
         tipos_sel = []
 
-    if "pais" in df.columns:
-        paises = sorted(set(df["pais"].dropna().map(_norm_pais).unique().tolist()))
+    if "pais" in df_base.columns:
+        paises = sorted(df_base["pais"].dropna().unique().tolist())
         paises_sel = st.multiselect("País", paises, default=paises)
     else:
         paises_sel = []
@@ -69,47 +86,33 @@ with st.sidebar:
     conf_range = st.slider(
         "Confianza de clasificación",
         0.0, 1.0, (0.0, 1.0), step=0.01,
-    ) if "confianza_clasificacion" in df.columns else (0.0, 1.0)
+    ) if "confianza_clasificacion" in df_base.columns else (0.0, 1.0)
 
     texto_buscar = st.text_input("🔎 Búsqueda libre (cargo / objetivo)", "")
 
 # ------------------------------------------------------------------
-# Aplicar filtros
+# Aplicar filtros del sidebar sobre df_base → df_tabla
 # ------------------------------------------------------------------
-df_filtered = df.copy()
-# Normalizar país en los datos (misma lógica que el sidebar)
-if "pais" in df_filtered.columns:
-    df_filtered["pais"] = df_filtered["pais"].map(_norm_pais)
+df_tabla = df_base.copy()
 
-if tipos_sel and "tipo_oportunidad" in df_filtered.columns:
-    df_filtered = df_filtered[df_filtered["tipo_oportunidad"].isin(tipos_sel)]
+if tipos_sel and "tipo_oportunidad" in df_tabla.columns:
+    df_tabla = df_tabla[df_tabla["tipo_oportunidad"].isin(tipos_sel)]
 
-if paises_sel and "pais" in df_filtered.columns:
-    df_filtered = df_filtered[df_filtered["pais"].isin(paises_sel)]
+if paises_sel and "pais" in df_tabla.columns:
+    df_tabla = df_tabla[df_tabla["pais"].isin(paises_sel)]
 
-if "confianza_clasificacion" in df_filtered.columns:
-    df_filtered = df_filtered[
-        (df_filtered["confianza_clasificacion"] >= conf_range[0]) &
-        (df_filtered["confianza_clasificacion"] <= conf_range[1])
+if "confianza_clasificacion" in df_tabla.columns:
+    df_tabla = df_tabla[
+        (df_tabla["confianza_clasificacion"] >= conf_range[0]) &
+        (df_tabla["confianza_clasificacion"] <= conf_range[1])
     ]
 
 if texto_buscar:
-    mask = pd.Series([False] * len(df_filtered), index=df_filtered.index)
+    mask = pd.Series([False] * len(df_tabla), index=df_tabla.index)
     for col in ["cargo", "objetivo_del_cargo"]:
-        if col in df_filtered.columns:
-            mask |= df_filtered[col].str.contains(texto_buscar, case=False, na=False)
-    df_filtered = df_filtered[mask]
-
-# Excluir filas con campos clave vacíos o nulos
-_required = ["cargo", "ciudad", "pais", "fecha_limite"]
-_existing = [c for c in _required if c in df_filtered.columns]
-if _existing:
-    _mask = df_filtered[_existing].apply(
-        lambda col: col.astype(str).str.strip().replace({"None": "", "nan": "", "NaT": ""})
-    ).ne("").all(axis=1)
-    df_tabla = df_filtered[_mask]
-else:
-    df_tabla = df_filtered
+        if col in df_tabla.columns:
+            mask |= df_tabla[col].str.contains(texto_buscar, case=False, na=False)
+    df_tabla = df_tabla[mask]
 
 # ------------------------------------------------------------------
 # KPIs de resultados filtrados
@@ -195,8 +198,8 @@ COLOR_MAP = {
 
 with col_left:
     st.markdown('<p class="section-title">📊 Distribución por Tipo</p>', unsafe_allow_html=True)
-    if "tipo_oportunidad" in df_filtered.columns and not df_filtered.empty:
-        tipo_counts = df_filtered["tipo_oportunidad"].value_counts().reset_index()
+    if "tipo_oportunidad" in df_tabla.columns and not df_tabla.empty:
+        tipo_counts = df_tabla["tipo_oportunidad"].value_counts().reset_index()
         tipo_counts.columns = ["Tipo", "Cantidad"]
         colors = [COLOR_MAP.get(t, "#999") for t in tipo_counts["Tipo"]]
 
