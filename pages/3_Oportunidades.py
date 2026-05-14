@@ -89,8 +89,11 @@ c1, c2, c3 = st.columns(3)
 c1.metric("📋 Oportunidades mostradas", len(df_filtered))
 c2.metric("🌎 Países representados", df_filtered["pais"].nunique() if "pais" in df_filtered.columns else 0)
 
-conf_prom = round(df_filtered["confianza_clasificacion"].mean(), 3) if "confianza_clasificacion" in df_filtered.columns and not df_filtered.empty else 0.0
-c3.metric("🎯 Confianza promedio", f"{conf_prom:.3f}")
+if "confianza_clasificacion" in df_filtered.columns and not df_filtered.empty:
+    conf_prom = f"{round(df_filtered['confianza_clasificacion'].mean(), 3):.3f}"
+else:
+    conf_prom = "N/D"
+c3.metric("🎯 Confianza promedio", conf_prom)
 
 # ------------------------------------------------------------------
 # Tabla principal
