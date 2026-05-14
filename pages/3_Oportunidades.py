@@ -152,7 +152,9 @@ for _, r in df_tabla.iterrows():
             imagen_url = r.get("url", "")
             if imagen_url:
                 st.link_button("🖼️ Ver imagen de la oportunidad", imagen_url)
-            st.markdown(f"**Razón de clasificación:** {r.get('razon_clasificacion', 'N/A')}")
+            razon = r.get("razon_clasificacion", "")
+            if razon and str(razon).strip() not in ("", "None", "nan", "N/A"):
+                st.markdown(f"**Razón de clasificación:** {razon}")
 
         st.markdown("**Objetivo del cargo:**")
         st.info(r.get("objetivo_del_cargo", "N/A"))
