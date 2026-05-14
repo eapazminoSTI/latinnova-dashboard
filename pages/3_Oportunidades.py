@@ -97,6 +97,17 @@ c3.metric("🎯 Confianza promedio", f"{conf_prom:.3f}")
 # ------------------------------------------------------------------
 st.markdown('<p class="section-title">📋 Tabla de Oportunidades</p>', unsafe_allow_html=True)
 
+# Excluir filas con campos clave vacíos o nulos
+_required = ["cargo", "ciudad", "pais", "fecha_limite"]
+_existing = [c for c in _required if c in df_filtered.columns]
+if _existing:
+    _mask = df_filtered[_existing].apply(
+        lambda col: col.astype(str).str.strip().replace({"None": "", "nan": "", "NaT": ""})
+    ).ne("").all(axis=1)
+    df_tabla = df_filtered[_mask]
+else:
+    df_tabla = df_filtered
+
 col_map = {
     "cargo": "Cargo",
     "tipo_oportunidad": "Tipo",
@@ -106,10 +117,10 @@ col_map = {
     "confianza_clasificacion": "Confianza",
     "url": "🖼️ Imagen",
 }
-avail = [k for k in col_map if k in df_filtered.columns]
+avail = [k for k in col_map if k in df_tabla.columns]
 
 st.dataframe(
-    df_filtered[avail].rename(columns=col_map),
+    df_tabla[avail].rename(columns=col_map),
     use_container_width=True,
     hide_index=True,
     column_config={
