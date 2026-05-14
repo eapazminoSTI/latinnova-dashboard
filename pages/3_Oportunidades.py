@@ -82,24 +82,6 @@ if texto_buscar:
             mask |= df_filtered[col].str.contains(texto_buscar, case=False, na=False)
     df_filtered = df_filtered[mask]
 
-# ------------------------------------------------------------------
-# KPIs de resultados filtrados
-# ------------------------------------------------------------------
-c1, c2, c3 = st.columns(3)
-c1.metric("📋 Oportunidades mostradas", len(df_filtered))
-c2.metric("🌎 Países representados", df_filtered["pais"].nunique() if "pais" in df_filtered.columns else 0)
-
-if "confianza_clasificacion" in df_filtered.columns and not df_filtered.empty:
-    conf_prom = f"{round(df_filtered['confianza_clasificacion'].mean(), 3):.3f}"
-else:
-    conf_prom = "N/D"
-c3.metric("🎯 Confianza promedio", conf_prom)
-
-# ------------------------------------------------------------------
-# Tabla principal
-# ------------------------------------------------------------------
-st.markdown('<p class="section-title">📋 Tabla de Oportunidades</p>', unsafe_allow_html=True)
-
 # Excluir filas con campos clave vacíos o nulos
 _required = ["cargo", "ciudad", "pais", "fecha_limite"]
 _existing = [c for c in _required if c in df_filtered.columns]
@@ -110,6 +92,24 @@ if _existing:
     df_tabla = df_filtered[_mask]
 else:
     df_tabla = df_filtered
+
+# ------------------------------------------------------------------
+# KPIs de resultados filtrados
+# ------------------------------------------------------------------
+c1, c2, c3 = st.columns(3)
+c1.metric("📋 Oportunidades mostradas", len(df_tabla))
+c2.metric("🌎 Países representados", df_tabla["pais"].nunique() if "pais" in df_tabla.columns else 0)
+
+if "confianza_clasificacion" in df_tabla.columns and not df_tabla.empty:
+    conf_prom = f"{round(df_tabla['confianza_clasificacion'].mean(), 3):.3f}"
+else:
+    conf_prom = "N/D"
+c3.metric("🎯 Confianza promedio", conf_prom)
+
+# ------------------------------------------------------------------
+# Tabla principal
+# ------------------------------------------------------------------
+st.markdown('<p class="section-title">📋 Tabla de Oportunidades</p>', unsafe_allow_html=True)
 
 col_map = {
     "cargo": "Cargo",
