@@ -197,11 +197,23 @@ with col_left:
 
 with col_right:
     st.markdown('<p class="section-title">🌎 Top 10 Países</p>', unsafe_allow_html=True)
-    if "pais" in df_filtered.columns and not df_filtered.empty:
+    if "pais" in df_tabla.columns and not df_tabla.empty:
+        # Provincias/ciudades ecuatorianas que llegan como país
+        _ecuador_alias = {
+            "Esmeraldas", "San Lorenzo", "Tulcan", "Tulcán", "Quito",
+        }
+        def _normalizar_pais(val):
+            v = str(val).strip().title()
+            if v in _ecuador_alias:
+                return "Ecuador"
+            return v
+
+        pais_series = df_tabla["pais"].map(_normalizar_pais)
+        # Excluir vacíos / nulos que hayan sobrevivido
+        pais_series = pais_series[pais_series.str.strip().replace({"None": "", "Nan": "", "Nat": ""}).ne("")]
+
         pais_counts = (
-            df_filtered["pais"]
-            .str.strip()
-            .str.title()
+            pais_series
             .value_counts()
             .head(10)
             .reset_index()
