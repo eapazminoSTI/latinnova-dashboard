@@ -37,16 +37,34 @@ with st.expander("🔧 Diagnóstico — columnas disponibles en la tabla", expan
     st.write(list(df.columns))
 
 # ------------------------------------------------------------------
+# Normalización de país (provincias ecuatorianas → Ecuador)
+# ------------------------------------------------------------------
+_ECUADOR_ALIAS = {"Esmeraldas", "San Lorenzo", "Tulcan", "Tulcán", "Quito"}
+
+def _norm_pais(val):
+    v = str(val).strip().title()
+    return "Ecuador" if v in _ECUADOR_ALIAS else v
+
+# ------------------------------------------------------------------
 # Filtros en sidebar
 # ------------------------------------------------------------------
 with st.sidebar:
     st.markdown("### 🔍 Filtros")
 
-    tipos = sorted(df["tipo_oportunidad"].unique().tolist()) if "tipo_oportunidad" in df.columns else []
-    tipos_sel = st.multiselect("Tipo de oportunidad", tipos, default=tipos)
+    if "tipo_oportunidad" in df.columns:
+        tipos = sorted(df["tipo_oportunidad"].dropna().unique().tolist())
+        if tipos:
+            tipos_sel = st.multiselect("Tipo de oportunidad", tipos, default=tipos)
+        else:
+            tipos_sel = []
+    else:
+        tipos_sel = []
 
-    paises = sorted(df["pais"].str.strip().str.title().unique().tolist()) if "pais" in df.columns else []
-    paises_sel = st.multiselect("País", paises, default=paises)
+    if "pais" in df.columns:
+        paises = sorted(set(df["pais"].dropna().map(_norm_pais).unique().tolist()))
+        paises_sel = st.multiselect("País", paises, default=paises)
+    else:
+        paises_sel = []
 
     conf_range = st.slider(
         "Confianza de clasificación",
@@ -59,9 +77,9 @@ with st.sidebar:
 # Aplicar filtros
 # ------------------------------------------------------------------
 df_filtered = df.copy()
-# Normalizar columna pais para evitar duplicados por mayúsculas/espacios
+# Normalizar país en los datos (misma lógica que el sidebar)
 if "pais" in df_filtered.columns:
-    df_filtered["pais"] = df_filtered["pais"].str.strip().str.title()
+    df_filtered["pais"] = df_filtered["pais"].map(_norm_pais)
 
 if tipos_sel and "tipo_oportunidad" in df_filtered.columns:
     df_filtered = df_filtered[df_filtered["tipo_oportunidad"].isin(tipos_sel)]
