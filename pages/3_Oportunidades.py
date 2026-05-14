@@ -134,20 +134,16 @@ st.dataframe(
 # ------------------------------------------------------------------
 st.markdown('<p class="section-title">🗂️ Detalle por Oportunidad</p>', unsafe_allow_html=True)
 
-for _, r in df_filtered.iterrows():
+for _, r in df_tabla.iterrows():
     cargo = r.get("cargo", "Sin cargo")
-    tipo  = r.get("tipo_oportunidad", "N/A")
     pais  = r.get("pais", "N/A")
-    conf  = r.get("confianza_clasificacion", 0)
 
-    label = f"📌 {cargo} | {tipo} | {pais} | confianza: {conf:.2f}"
+    label = f"📌 {cargo} | {pais}"
     with st.expander(label):
         col_a, col_b = st.columns(2)
         with col_a:
             st.markdown(f"**Ciudad:** {r.get('ciudad', 'N/A')}")
             st.markdown(f"**País:** {pais}")
-            st.markdown(f"**Tipo:** {tipo}")
-            st.markdown(f"**Confianza:** {conf:.3f}")
             st.markdown(f"**Fecha límite:** {r.get('fecha_limite', 'N/A')}")
         with col_b:
             aplica = r.get("aplica_en", "")
