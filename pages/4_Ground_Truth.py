@@ -179,9 +179,9 @@ if "experiment_id" in df_gt_eval.columns and "es_correcto" in df_gt_eval.columns
         st.plotly_chart(fig_breakdown, use_container_width=True)
 
 # ------------------------------------------------------------------
-# Sección: Evaluar registros pendientes
+# Formulario unificado de evaluación
 # ------------------------------------------------------------------
-st.markdown('<p class="section-title">✏️ Evaluar Registros Pendientes</p>', unsafe_allow_html=True)
+st.markdown('<p class="section-title">📝 Evaluación</p>', unsafe_allow_html=True)
 
 # Mensajes persistentes tras el rerun
 if st.session_state.get("gt_saved"):
@@ -191,168 +191,149 @@ elif st.session_state.get("gt_update_saved"):
     st.success("✅ Registro actualizado exitosamente en n8n.")
     del st.session_state["gt_update_saved"]
 elif st.session_state.get("gt_warning"):
-    st.warning("⚠ No se pudo guardar en n8n (modo mock activo). La evaluación se registró localmente.")
+    st.warning("⚠ No se pudo guardar en n8n (modo mock activo).")
     del st.session_state["gt_warning"]
 elif st.session_state.get("gt_update_warning"):
     st.warning("⚠ No se pudo actualizar el registro en n8n.")
     del st.session_state["gt_update_warning"]
 
 df_pending = df_gt[df_gt["es_correcto"].isna()] if "es_correcto" in df_gt.columns else pd.DataFrame()
-
-if df_pending.empty:
-    st.success("No hay registros pendientes de evaluación.")
-else:
-    st.info(f"Hay **{len(df_pending)}** registros pendientes de evaluación manual.")
-
-    def _row_label(row):
-        consultor = row.get("nombre_consultor") or row.get("consultor_id") or "?"
-        opp = row.get("nombre_oportunidad") or row.get("oportunidad_id") or "?"
-        exp = row.get("experiment_id", "")
-        return f"[{exp}] {consultor} ↔ {opp}"
-
-    pending_labels = [_row_label(r) for _, r in df_pending.iterrows()]
-    pending_sel_label = st.selectbox("Seleccionar registro pendiente", pending_labels, key="pending_sel")
-    sel_idx = pending_labels.index(pending_sel_label)
-    sel_row = df_pending.iloc[sel_idx]
-
-    with st.form("form_evaluar_pendiente"):
-        col_p1, col_p2 = st.columns(2)
-        with col_p1:
-            st.text_input("Experimento", value=str(sel_row.get("experiment_id", "")), disabled=True)
-            st.text_input("Oportunidad", value=str(sel_row.get("nombre_oportunidad", sel_row.get("oportunidad_id", ""))), disabled=True)
-        with col_p2:
-            st.text_input("Consultor", value=str(sel_row.get("nombre_consultor", sel_row.get("consultor_id", ""))), disabled=True)
-            evaluador_upd = st.text_input("Evaluador", placeholder="nombre_evaluador", key="eval_upd")
-        es_correcto_upd = st.radio("¿Es un match correcto?", ["✅ Sí", "❌ No"], horizontal=True, key="radio_upd")
-        comentario_upd = st.text_area("Comentario (opcional)", key="comment_upd")
-        submitted_upd = st.form_submit_button("💾 Guardar evaluación del pendiente", use_container_width=True)
-
-        if submitted_upd:
-            if not evaluador_upd:
-                st.error("Por favor ingresa el nombre del evaluador.")
-            else:
-                row_n8n_id = sel_row.get("id")
-                update_data = {
-                    "es_correcto": es_correcto_upd.startswith("✅"),
-                    "evaluador": evaluador_upd,
-                    "comentario": comentario_upd,
-                    "evaluated_at": datetime.utcnow().isoformat(),
-                }
-                if row_n8n_id is not None:
-                    success = client.update_row("ground_truth", int(row_n8n_id), update_data)
-                else:
-                    # Si no hay id interno, insertar fila nueva con los datos del pendiente + evaluación
-                    new_row = {
-                        "par_id": str(sel_row.get("par_id", f"gt_{uuid.uuid4().hex[:6]}")),
-                        "experiment_id": str(sel_row.get("experiment_id", "")),
-                        "oportunidad_id": str(sel_row.get("oportunidad_id", "")),
-                        "consultor_id": str(sel_row.get("consultor_id", "")),
-                        "nombre_oportunidad": str(sel_row.get("nombre_oportunidad", "")),
-                        "nombre_consultor": str(sel_row.get("nombre_consultor", "")),
-                        **update_data,
-                    }
-                    success = client.insert_row("ground_truth", new_row)
-
-                if success:
-                    st.session_state["gt_update_saved"] = True
-                    st.cache_data.clear()
-                else:
-                    st.session_state["gt_update_warning"] = True
-                st.rerun()
-
-# ------------------------------------------------------------------
-# Formulario: Agregar nueva evaluación de ground truth
-# ------------------------------------------------------------------
-st.markdown('<p class="section-title">➕ Agregar Nueva Evaluación</p>', unsafe_allow_html=True)
-
 exp_ids = df_exp["experiment_id"].tolist() if not df_exp.empty and "experiment_id" in df_exp.columns else []
 
-if not exp_ids:
-    st.info("No hay experimentos registrados aún. Ejecuta al menos un experimento para poder agregar evaluaciones de ground truth.")
-else:
-    # Construir lista de pares únicos desde todos_los_resultados de resultados_match
-    unique_pairs = []
-    if not df_match.empty and "todos_los_resultados" in df_match.columns:
-        seen_keys = set()
-        for _, row in df_match.iterrows():
-            resultados = safe_json_parse(row.get("todos_los_resultados"), [])
-            if isinstance(resultados, list):
-                for par in resultados:
-                    key = (par.get("consultor_id", ""), par.get("oportunidad_id", ""))
-                    if key not in seen_keys and any(key):
-                        seen_keys.add(key)
-                        decision = par.get("decision", "")
-                        icon = "✅" if decision == "aplicar" else "❌"
-                        unique_pairs.append({
-                            "label": f"{icon} {par.get('nombre_consultor', '?')} ↔ {par.get('nombre_oportunidad', '?')} [{decision}]",
-                            "consultor_id": par.get("consultor_id", ""),
-                            "nombre_consultor": par.get("nombre_consultor", ""),
-                            "oportunidad_id": par.get("oportunidad_id", ""),
-                            "nombre_oportunidad": par.get("nombre_oportunidad", ""),
-                        })
+tab_pending, tab_new = st.tabs([
+    f"✏️ Evaluar pendiente ({len(df_pending)})",
+    "➕ Nuevo registro",
+])
 
-    # Selector de par FUERA del form para que al cambiar recargue y pre-complete los campos
-    selected_pair = None
-    if unique_pairs:
-        pair_labels = ["— Ingresar manualmente —"] + [p["label"] for p in unique_pairs]
-        pair_sel = st.selectbox(
-            "🔗 Cargar par evaluado desde el pipeline (opcional)",
-            pair_labels,
-            help="Selecciona un par consultor-oportunidad ya evaluado por el pipeline para auto-completar los campos.",
-        )
-        if pair_sel != "— Ingresar manualmente —":
-            selected_pair = next((p for p in unique_pairs if p["label"] == pair_sel), None)
+# ---- Tab 1: Evaluar pendiente ----
+with tab_pending:
+    if df_pending.empty:
+        st.success("No hay registros pendientes de evaluación.")
+    else:
+        def _row_label(row):
+            consultor = row.get("nombre_consultor") or row.get("consultor_id") or "?"
+            opp = row.get("nombre_oportunidad") or row.get("oportunidad_id") or "?"
+            exp = row.get("experiment_id", "")
+            return f"[{exp}] {consultor} ↔ {opp}"
 
-    with st.form("form_ground_truth"):
-        col_f1, col_f2 = st.columns(2)
-        with col_f1:
-            exp_sel   = st.selectbox("Experimento", exp_ids)
-            opp_id    = st.text_input(
-                "ID de Oportunidad",
-                value=selected_pair["oportunidad_id"] if selected_pair else "",
-                placeholder="job_001",
-            )
-            opp_name  = st.text_input(
-                "Nombre de Oportunidad",
-                value=selected_pair["nombre_oportunidad"] if selected_pair else "",
-            )
-        with col_f2:
-            cons_id   = st.text_input(
-                "ID de Consultor",
-                value=selected_pair["consultor_id"] if selected_pair else "",
-                placeholder="c_001",
-            )
-            cons_name = st.text_input(
-                "Nombre del Consultor",
-                value=selected_pair["nombre_consultor"] if selected_pair else "",
-            )
-            evaluador = st.text_input("Evaluador", placeholder="nombre_evaluador")
+        pending_labels = [_row_label(r) for _, r in df_pending.iterrows()]
+        pending_sel_label = st.selectbox("Seleccionar registro", pending_labels, key="pending_sel")
+        sel_idx = pending_labels.index(pending_sel_label)
+        sel_row = df_pending.iloc[sel_idx]
 
-        es_correcto = st.radio("¿Es un match correcto?", ["✅ Sí", "❌ No"], horizontal=True)
-        comentario  = st.text_area("Comentario (opcional)")
+        with st.form("form_evaluar_pendiente"):
+            col_p1, col_p2 = st.columns(2)
+            with col_p1:
+                st.text_input("Experimento", value=str(sel_row.get("experiment_id", "")), disabled=True)
+                st.text_input("Oportunidad", value=str(sel_row.get("nombre_oportunidad", sel_row.get("oportunidad_id", ""))), disabled=True)
+            with col_p2:
+                st.text_input("Consultor", value=str(sel_row.get("nombre_consultor", sel_row.get("consultor_id", ""))), disabled=True)
+                evaluador_upd = st.text_input("Evaluador", placeholder="nombre_evaluador", key="eval_upd")
+            es_correcto_upd = st.radio("¿Es un match correcto?", ["✅ Sí", "❌ No"], horizontal=True, key="radio_upd")
+            comentario_upd = st.text_area("Comentario (opcional)", key="comment_upd")
+            submitted_upd = st.form_submit_button("💾 Guardar evaluación", use_container_width=True)
 
-        submitted = st.form_submit_button("💾 Guardar evaluación", use_container_width=True)
-
-        if submitted:
-            if not all([exp_sel, opp_id, opp_name, cons_id, cons_name, evaluador]):
-                st.error("Por favor completa todos los campos obligatorios.")
-            else:
-                new_row = {
-                    "par_id": f"gt_{uuid.uuid4().hex[:6]}",
-                    "experiment_id": exp_sel,
-                    "oportunidad_id": opp_id,
-                    "consultor_id": cons_id,
-                    "nombre_oportunidad": opp_name,
-                    "nombre_consultor": cons_name,
-                    "es_correcto": es_correcto.startswith("✅"),
-                    "evaluador": evaluador,
-                    "comentario": comentario,
-                    "evaluated_at": datetime.utcnow().isoformat(),
-                }
-                success = client.insert_row("ground_truth", new_row)
-                if success:
-                    st.session_state["gt_saved"] = True
-                    st.cache_data.clear()
+            if submitted_upd:
+                if not evaluador_upd:
+                    st.error("Por favor ingresa el nombre del evaluador.")
                 else:
-                    st.session_state["gt_warning"] = True
-                st.rerun()
+                    row_n8n_id = sel_row.get("id")
+                    update_data = {
+                        "es_correcto": es_correcto_upd.startswith("✅"),
+                        "evaluador": evaluador_upd,
+                        "comentario": comentario_upd,
+                        "evaluated_at": datetime.utcnow().isoformat(),
+                    }
+                    if row_n8n_id is not None:
+                        success = client.update_row("ground_truth", int(row_n8n_id), update_data)
+                    else:
+                        new_row = {
+                            "par_id": str(sel_row.get("par_id", f"gt_{uuid.uuid4().hex[:6]}")),
+                            "experiment_id": str(sel_row.get("experiment_id", "")),
+                            "oportunidad_id": str(sel_row.get("oportunidad_id", "")),
+                            "consultor_id": str(sel_row.get("consultor_id", "")),
+                            "nombre_oportunidad": str(sel_row.get("nombre_oportunidad", "")),
+                            "nombre_consultor": str(sel_row.get("nombre_consultor", "")),
+                            **update_data,
+                        }
+                        success = client.insert_row("ground_truth", new_row)
+                    if success:
+                        st.session_state["gt_update_saved"] = True
+                        st.cache_data.clear()
+                    else:
+                        st.session_state["gt_update_warning"] = True
+                    st.rerun()
+
+# ---- Tab 2: Nuevo registro ----
+with tab_new:
+    if not exp_ids:
+        st.info("No hay experimentos registrados aún.")
+    else:
+        unique_pairs = []
+        if not df_match.empty and "todos_los_resultados" in df_match.columns:
+            seen_keys = set()
+            for _, row in df_match.iterrows():
+                resultados = safe_json_parse(row.get("todos_los_resultados"), [])
+                if isinstance(resultados, list):
+                    for par in resultados:
+                        key = (par.get("consultor_id", ""), par.get("oportunidad_id", ""))
+                        if key not in seen_keys and any(key):
+                            seen_keys.add(key)
+                            decision = par.get("decision", "")
+                            icon = "✅" if decision == "aplicar" else "❌"
+                            unique_pairs.append({
+                                "label": f"{icon} {par.get('nombre_consultor', '?')} ↔ {par.get('nombre_oportunidad', '?')} [{decision}]",
+                                "consultor_id": par.get("consultor_id", ""),
+                                "nombre_consultor": par.get("nombre_consultor", ""),
+                                "oportunidad_id": par.get("oportunidad_id", ""),
+                                "nombre_oportunidad": par.get("nombre_oportunidad", ""),
+                            })
+
+        selected_pair = None
+        if unique_pairs:
+            pair_labels = ["— Ingresar manualmente —"] + [p["label"] for p in unique_pairs]
+            pair_sel = st.selectbox(
+                "🔗 Autocompletar desde el pipeline (opcional)",
+                pair_labels,
+                help="Selecciona un par para pre-completar los campos.",
+            )
+            if pair_sel != "— Ingresar manualmente —":
+                selected_pair = next((p for p in unique_pairs if p["label"] == pair_sel), None)
+
+        with st.form("form_ground_truth"):
+            col_f1, col_f2 = st.columns(2)
+            with col_f1:
+                exp_sel  = st.selectbox("Experimento", exp_ids)
+                opp_id   = st.text_input("ID de Oportunidad", value=selected_pair["oportunidad_id"] if selected_pair else "", placeholder="job_001")
+                opp_name = st.text_input("Nombre de Oportunidad", value=selected_pair["nombre_oportunidad"] if selected_pair else "")
+            with col_f2:
+                cons_id   = st.text_input("ID de Consultor", value=selected_pair["consultor_id"] if selected_pair else "", placeholder="c_001")
+                cons_name = st.text_input("Nombre del Consultor", value=selected_pair["nombre_consultor"] if selected_pair else "")
+                evaluador = st.text_input("Evaluador", placeholder="nombre_evaluador")
+            es_correcto = st.radio("¿Es un match correcto?", ["✅ Sí", "❌ No"], horizontal=True)
+            comentario  = st.text_area("Comentario (opcional)")
+            submitted = st.form_submit_button("💾 Guardar evaluación", use_container_width=True)
+
+            if submitted:
+                if not all([exp_sel, opp_id, opp_name, cons_id, cons_name, evaluador]):
+                    st.error("Por favor completa todos los campos obligatorios.")
+                else:
+                    new_row = {
+                        "par_id": f"gt_{uuid.uuid4().hex[:6]}",
+                        "experiment_id": exp_sel,
+                        "oportunidad_id": opp_id,
+                        "consultor_id": cons_id,
+                        "nombre_oportunidad": opp_name,
+                        "nombre_consultor": cons_name,
+                        "es_correcto": es_correcto.startswith("✅"),
+                        "evaluador": evaluador,
+                        "comentario": comentario,
+                        "evaluated_at": datetime.utcnow().isoformat(),
+                    }
+                    success = client.insert_row("ground_truth", new_row)
+                    if success:
+                        st.session_state["gt_saved"] = True
+                        st.cache_data.clear()
+                    else:
+                        st.session_state["gt_warning"] = True
+                    st.rerun()
