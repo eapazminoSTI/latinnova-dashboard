@@ -226,6 +226,27 @@ class N8NClient:
             return False
 
     # ------------------------------------------------------------------
+    # Actualización de fila existente (para Ground Truth pendiente)
+    # ------------------------------------------------------------------
+
+    def update_row(self, table_name: str, row_id: int, data: dict) -> bool:
+        """Actualiza campos de una fila existente usando su ID interno de N8N."""
+        table_id = self._get_table_id(table_name)
+        if self.api_key and table_id:
+            url = f"{self.base_url}/api/v1/data-tables/{table_id}/rows/{row_id}"
+            try:
+                resp = requests.patch(url, json={"data": data}, headers=self._headers, timeout=REQUEST_TIMEOUT)
+                if resp.status_code in (200, 201):
+                    return True
+                # Algunos builds de n8n usan PUT en lugar de PATCH
+                resp = requests.put(url, json={"data": data}, headers=self._headers, timeout=REQUEST_TIMEOUT)
+                if resp.status_code in (200, 201):
+                    return True
+            except Exception:
+                pass
+        return False
+
+    # ------------------------------------------------------------------
     # Diagnóstico de conexión
     # ------------------------------------------------------------------
 

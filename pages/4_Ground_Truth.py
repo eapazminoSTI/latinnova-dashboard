@@ -38,6 +38,19 @@ if df_gt.empty:
     st.warning("Sin datos de ground truth disponibles.")
     st.stop()
 
+# Normalizar es_correcto: N8N puede devolver strings "true"/"false"/None/null
+if "es_correcto" in df_gt.columns:
+    def _to_bool(v):
+        if isinstance(v, bool):
+            return v
+        if isinstance(v, str):
+            if v.lower() in ("true", "1", "yes"):
+                return True
+            if v.lower() in ("false", "0", "no"):
+                return False
+        return None  # null → pendiente
+    df_gt["es_correcto"] = df_gt["es_correcto"].apply(_to_bool)
+
 # Separar filas evaluadas (es_correcto no nulo) de las pendientes
 df_gt_eval = df_gt[df_gt["es_correcto"].notna()] if "es_correcto" in df_gt.columns else df_gt
 
@@ -166,17 +179,91 @@ if "experiment_id" in df_gt_eval.columns and "es_correcto" in df_gt_eval.columns
         st.plotly_chart(fig_breakdown, use_container_width=True)
 
 # ------------------------------------------------------------------
-# Formulario: Agregar nueva evaluación de ground truth
+# Sección: Evaluar registros pendientes
 # ------------------------------------------------------------------
-st.markdown('<p class="section-title">➕ Agregar Nueva Evaluación</p>', unsafe_allow_html=True)
+st.markdown('<p class="section-title">✏️ Evaluar Registros Pendientes</p>', unsafe_allow_html=True)
 
 # Mensajes persistentes tras el rerun
 if st.session_state.get("gt_saved"):
     st.success("✅ Evaluación guardada exitosamente en n8n.")
     del st.session_state["gt_saved"]
+elif st.session_state.get("gt_update_saved"):
+    st.success("✅ Registro actualizado exitosamente en n8n.")
+    del st.session_state["gt_update_saved"]
 elif st.session_state.get("gt_warning"):
     st.warning("⚠ No se pudo guardar en n8n (modo mock activo). La evaluación se registró localmente.")
     del st.session_state["gt_warning"]
+elif st.session_state.get("gt_update_warning"):
+    st.warning("⚠ No se pudo actualizar el registro en n8n.")
+    del st.session_state["gt_update_warning"]
+
+df_pending = df_gt[df_gt["es_correcto"].isna()] if "es_correcto" in df_gt.columns else pd.DataFrame()
+
+if df_pending.empty:
+    st.success("No hay registros pendientes de evaluación.")
+else:
+    st.info(f"Hay **{len(df_pending)}** registros pendientes de evaluación manual.")
+
+    def _row_label(row):
+        consultor = row.get("nombre_consultor") or row.get("consultor_id") or "?"
+        opp = row.get("nombre_oportunidad") or row.get("oportunidad_id") or "?"
+        exp = row.get("experiment_id", "")
+        return f"[{exp}] {consultor} ↔ {opp}"
+
+    pending_labels = [_row_label(r) for _, r in df_pending.iterrows()]
+    pending_sel_label = st.selectbox("Seleccionar registro pendiente", pending_labels, key="pending_sel")
+    sel_idx = pending_labels.index(pending_sel_label)
+    sel_row = df_pending.iloc[sel_idx]
+
+    with st.form("form_evaluar_pendiente"):
+        col_p1, col_p2 = st.columns(2)
+        with col_p1:
+            st.text_input("Experimento", value=str(sel_row.get("experiment_id", "")), disabled=True)
+            st.text_input("Oportunidad", value=str(sel_row.get("nombre_oportunidad", sel_row.get("oportunidad_id", ""))), disabled=True)
+        with col_p2:
+            st.text_input("Consultor", value=str(sel_row.get("nombre_consultor", sel_row.get("consultor_id", ""))), disabled=True)
+            evaluador_upd = st.text_input("Evaluador", placeholder="nombre_evaluador", key="eval_upd")
+        es_correcto_upd = st.radio("¿Es un match correcto?", ["✅ Sí", "❌ No"], horizontal=True, key="radio_upd")
+        comentario_upd = st.text_area("Comentario (opcional)", key="comment_upd")
+        submitted_upd = st.form_submit_button("💾 Guardar evaluación del pendiente", use_container_width=True)
+
+        if submitted_upd:
+            if not evaluador_upd:
+                st.error("Por favor ingresa el nombre del evaluador.")
+            else:
+                row_n8n_id = sel_row.get("id")
+                update_data = {
+                    "es_correcto": es_correcto_upd.startswith("✅"),
+                    "evaluador": evaluador_upd,
+                    "comentario": comentario_upd,
+                    "evaluated_at": datetime.utcnow().isoformat(),
+                }
+                if row_n8n_id is not None:
+                    success = client.update_row("ground_truth", int(row_n8n_id), update_data)
+                else:
+                    # Si no hay id interno, insertar fila nueva con los datos del pendiente + evaluación
+                    new_row = {
+                        "par_id": str(sel_row.get("par_id", f"gt_{uuid.uuid4().hex[:6]}")),
+                        "experiment_id": str(sel_row.get("experiment_id", "")),
+                        "oportunidad_id": str(sel_row.get("oportunidad_id", "")),
+                        "consultor_id": str(sel_row.get("consultor_id", "")),
+                        "nombre_oportunidad": str(sel_row.get("nombre_oportunidad", "")),
+                        "nombre_consultor": str(sel_row.get("nombre_consultor", "")),
+                        **update_data,
+                    }
+                    success = client.insert_row("ground_truth", new_row)
+
+                if success:
+                    st.session_state["gt_update_saved"] = True
+                    st.cache_data.clear()
+                else:
+                    st.session_state["gt_update_warning"] = True
+                st.rerun()
+
+# ------------------------------------------------------------------
+# Formulario: Agregar nueva evaluación de ground truth
+# ------------------------------------------------------------------
+st.markdown('<p class="section-title">➕ Agregar Nueva Evaluación</p>', unsafe_allow_html=True)
 
 exp_ids = df_exp["experiment_id"].tolist() if not df_exp.empty and "experiment_id" in df_exp.columns else []
 
